@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Food Ingredient Reader</title>
+
+<!-- OCR Library -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f5f7fa;
+    display: flex;
+    justify-content: center;
+    padding: 40px;
+  }
+
+  .app {
+    background: white;
+    width: 420px;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  }
+
+  h1 {
+    text-align: center;
+    margin-bottom: 5px;
+  }
+
+  p {
+    text-align: center;
+    color: #555;
+  }
+
+  input, button {
+    width: 100%;
+    margin-top: 15px;
+  }
+
+  button {
+    padding: 10px;
+    background: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #4338ca;
+  }
+
+  pre {
+    background: #f1f5f9;
+    padding: 10px;
+    white-space: pre-wrap;
+    border-radius: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+
+  #summary {
+    background: #ecfeff;
+    padding: 12px;
+    border-radius: 6px;
+    margin-top: 10px;
+  }
+
+  .loading {
+    color: #888;
+    font-style: italic;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="app">
+  <h1>🥗 Ingredient Reader</h1>
+  <p>Upload food packet ingredient image</p>
+
+  <input type="file" id="imageInput" accept="image/*">
+  <button onclick="processImage()">Analyze Ingredients</button>
+
+  <h3>📄 Extracted Text</h3>
+  <pre id="ocrText" class="loading">Waiting for image...</pre>
+
+  <h3>🤖 Easy Summary</h3>
+  <div id="summary" class="loading">No analysis yet</div>
+</div>
+
+<script>
+  // We havd made this as Demo Purpose Prototype only
+  const GEMINI_API_KEY = "GEMINI API KEY HERE";
+
+  async function processImage() {
+    const imageInput = document.getElementById("imageInput");
+    const ocrTextEl = document.getElementById("ocrText");
+    const summaryEl = document.getElementById("summary");
+
+    if (!imageInput.files.length) {
+      alert("Please upload an image");
+      return;
+    }
+
+    ocrTextEl.innerText = "Extracting text...";
+    summaryEl.innerText = "Analyzing ingredients...";
+    ocrTextEl.classList.add("loading");
+    summaryEl.classList.add("loading");
+
+    try {
+      // OCR
+      const result = await Tesseract.recognize(imageInput.files[0], "eng");
+      const extractedText = result.data.text.trim();
+
+      ocrTextEl.innerText = extractedText || "No text detected";
+      ocrTextEl.classList.remove("loading");
+
+      if (!extractedText) {
+        summaryEl.innerText = "Unable to read ingredients.";
+        return;
+      }
+
+      // Gemini Summary
+      const summary = await getGeminiSummary(extractedText);
+      summaryEl.innerText = summary;
+      summaryEl.classList.remove("loading");
+
+    } catch (error) {
+      summaryEl.innerText = "Error occurred. Check console.";
+      console.error(error);
+    }
+  }
+
+  async function getGeminiSummary(text) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `Give a very short and simple summary of these food ingredients.
+Also mention if people with any health conditions should avoid it.
+
+Ingredients:
+${text}`
+            }]
+          }]
+        })
+      }
+    );
+
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from AI.";
+  }
+</script>
+
+</body>
+</html>
